@@ -74,12 +74,12 @@ function pool(){
 }
 let lastUrl=null;
 const HKEY='randomplay_history';
-function hist(){ try{ return JSON.parse(localStorage.getItem(HKEY))||[]; }catch(e){ return []; } }
+function hist(){ try{ const value=JSON.parse(localStorage.getItem(HKEY)); return Array.isArray(value)?value:[]; }catch(e){ return []; } }
 function roll(){
   const items=pool();
   if(!items.length){ $('err').style.display='block'; $('err').textContent='No links in this category yet.'; return; }
   $('err').style.display='none';
-  let choices=items.filter(i=>i.url!==lastUrl); if(!choices.length) choices=items;
+  let choices=items.filter(i=>i && typeof i.title==='string' && safeLink(i.url) && i.url!==lastUrl); if(!choices.length) choices=items.filter(i=>i && typeof i.title==='string' && safeLink(i.url)); if(!choices.length){ $('err').style.display='block'; $('err').textContent='No safe links in this category.'; return; }
   const pick=choices[Math.floor(Math.random()*choices.length)];
   lastUrl=pick.url;
   // little spin animation on the button
@@ -89,12 +89,30 @@ function roll(){
   $('rOpen').href=pick.url;
   $('result').classList.add('show');
   $('rCopy').textContent='Copy link';
-  const h=hist(); h.unshift({title:pick.title,url:pick.url,at:Date.now()}); localStorage.setItem(HKEY,JSON.stringify(h.slice(0,12))); renderRecent();
+  const h=hist(); h.unshift({title:pick.title,url:pick.url,at:Date.now()}); try{ localStorage.setItem(HKEY,JSON.stringify(h.slice(0,12))); }catch(e){ /* Private browsing may disable storage. */ } renderRecent();
+}
+function safeLink(url){
+  try { const u=new URL(url); return ['https:','http:'].includes(u.protocol) ? u.href : null; }
+  catch { return null; }
 }
 function renderRecent(){
-  const h=hist(); const el=$('recent');
-  if(!h.length){ el.innerHTML=''; return; }
-  el.innerHTML='<div style="color:var(--muted);font-size:.78rem;margin-bottom:6px">Recent picks</div>'+h.slice(0,6).map(x=>`<a href="${x.url}" target="_blank" rel="noopener" style="display:block;color:var(--text);text-decoration:none;font-size:.85rem;padding:4px 0;border-bottom:1px solid #262a4d">↳ ${x.title}</a>`).join('');
+  const entries=hist(); const el=$('recent');
+  el.replaceChildren();
+  if(!Array.isArray(entries) || !entries.length) return;
+  const valid=entries.slice(0,6).filter(x=>x && typeof x.title==='string' && safeLink(x.url));
+  if(!valid.length) return;
+  const heading=document.createElement('div');
+  heading.style.cssText='color:var(--muted);font-size:.78rem;margin-bottom:6px';
+  heading.textContent='Recent picks';
+  el.appendChild(heading);
+  valid.forEach(x=>{
+    const a=document.createElement('a');
+    a.href=safeLink(x.url);
+    a.target='_blank'; a.rel='noopener noreferrer';
+    a.style.cssText='display:block;color:var(--text);text-decoration:none;font-size:.85rem;padding:4px 0;border-bottom:1px solid #262a4d';
+    a.textContent='↳ '+x.title;
+    el.appendChild(a);
+  });
 }
 $('surprise').onclick=roll;
 $('rAgain').onclick=roll;
